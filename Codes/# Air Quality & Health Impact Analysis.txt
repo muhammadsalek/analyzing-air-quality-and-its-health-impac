@@ -1,0 +1,98 @@
+# Install necessary libraries if not already installed
+if (!requireNamespace("tidyverse", quietly = TRUE)) install.packages("tidyverse")
+if (!requireNamespace("caret", quietly = TRUE)) install.packages("caret")
+if (!requireNamespace("recipes", quietly = TRUE)) install.packages("recipes")
+if (!requireNamespace("ROSE", quietly = TRUE)) install.packages("ROSE")
+if (!requireNamespace("ggthemes", quietly = TRUE)) install.packages("ggthemes")
+if (!requireNamespace("keras", quietly = TRUE)) install.packages("keras")
+if (!requireNamespace("tensorflow", quietly = TRUE)) install.packages("tensorflow")
+
+# Load necessary libraries
+library(tidyverse)   # Data manipulation and visualization
+library(caret)       # Machine learning utilities
+library(recipes)     # Feature preprocessing
+library(ROSE)        # Handling imbalanced data (similar to SMOTE)
+library(keras)       # Deep learning
+library(tensorflow)  # TensorFlow backend
+library(ggplot2)     # Visualization
+library(ggthemes)    # Additional visualization themes
+
+
+
+
+# Load dataset
+data <- read.csv('/kaggle/input/air-quality-and-health-impact-dataset/air_quality_health_impact_data.csv')
+
+# View dataset structure
+str(data)
+
+
+
+
+
+
+
+# Ignore warnings
+options(warn=-1)
+
+# Set theme for plots
+theme_set(theme_minimal())
+
+# Set seed for reproducibility
+set.seed(1)
+
+# Define train-test split function
+data_split <- function(data, train_size = 0.8) {
+  set.seed(123)
+  train_index <- sample(seq_len(nrow(data)), size = floor(train_size * nrow(data)))
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  return(list(train = train_data, test = test_data))
+}
+
+# Define scaling functions
+scale_minmax <- function(data) {
+  preProcess(data, method = "range")
+}
+
+scale_standard <- function(data) {
+  preProcess(data, method = c("center", "scale"))
+}
+
+scale_robust <- function(data) {
+  preProcess(data, method = c("medianImpute", "center", "scale"))
+}
+
+# Define performance metrics functions
+evaluate_regression <- function(y_true, y_pred) {
+  mse <- mean((y_true - y_pred)^2)
+  rmse <- sqrt(mse)
+  mae <- mean(abs(y_true - y_pred))
+  r2 <- cor(y_true, y_pred)^2
+  return(list(MSE = mse, RMSE = rmse, MAE = mae, R2 = r2))
+}
+
+# Define function for handling imbalanced data using ROSE
+data_oversample <- function(data, target) {
+  formula <- as.formula(paste(target, "~ ."))
+  data_balanced <- ROSE(formula, data = data)$data
+  return(data_balanced)
+}
+
+# Define a simple Keras model
+create_model <- function(input_shape) {
+  model <- keras_model_sequential() %>%
+    layer_dense(units = 64, activation = 'relu', input_shape = c(input_shape)) %>%
+    layer_batch_normalization() %>%
+    layer_dropout(rate = 0.3) %>%
+    layer_dense(units = 32, activation = 'relu') %>%
+    layer_dropout(rate = 0.3) %>%
+    layer_dense(units = 1, activation = 'linear')
+  
+  model %>% compile(
+    loss = 'mse',
+    optimizer = optimizer_adam(),
+    metrics = c('mae')
+  )
+  return(model)
+}
